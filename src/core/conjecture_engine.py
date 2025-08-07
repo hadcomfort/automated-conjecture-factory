@@ -5,6 +5,7 @@ import sympy
 import yaml
 import logging
 from scipy.linalg import solve, LinAlgError
+from scipy.optimize import fsolve # Import the numerical solver
 from typing import List, Dict, Any
 
 # --- Configuration Loading ---
@@ -15,17 +16,15 @@ def load_config() -> Dict:
             return yaml.safe_load(f)
     except FileNotFoundError:
         logging.error("Configuration file 'config/settings.yaml' not found.")
-        # Return a default config to prevent crashing
         return {
-            'max_poly_degree_to_test': 10,
-            'max_recurrence_depth_to_test': 10,
+            'max_poly_degree_to_test': 15,
+            'max_recurrence_depth_to_test': 15,
             'verification_ratio': 0.8
         }
 
 CONFIG = load_config()
 
 # --- Logging Setup ---
-# Assumes logging is configured by the main script, but sets a basic config if run standalone.
 if not logging.getLogger().hasHandlers():
     logging.basicConfig(
         level=logging.INFO,
@@ -36,139 +35,114 @@ if not logging.getLogger().hasHandlers():
 # --- Conjecture Functions ---
 
 def test_polynomial_conjecture(sequence_data: List[int]) -> Dict[str, Any]:
-    """
-    Tests if a sequence can be described by a simple polynomial formula.
-
-    Args:
-        sequence_data (List[int]): The integer sequence to analyze.
-
-    Returns:
-        Dict[str, Any]: A dictionary containing the status and details of the conjecture.
-    """
+    """Tests if a sequence can be described by a simple polynomial formula."""
+    # (This function remains unchanged)
     n = sympy.symbols('n')
-    max_degree = CONFIG.get('max_poly_degree_to_test', 10)
+    max_degree = CONFIG.get('max_poly_degree_to_test', 15)
     verification_ratio = CONFIG.get('verification_ratio', 0.8)
-    
-    # Determine the number of terms to use for fitting the polynomial
     fit_len = int(len(sequence_data) * verification_ratio)
-    if fit_len < 2:
-        logging.warning("Sequence too short for polynomial fitting.")
-        return {"status": "failed"}
-
-    x_fit = np.arange(1, fit_len + 1) # OEIS sequences are typically 1-indexed
+    if fit_len < 2: return {"status": "failed"}
+    x_fit = np.arange(1, fit_len + 1)
     y_fit = np.array(sequence_data[:fit_len])
-
     for degree in range(1, max_degree + 1):
-        if fit_len <= degree:
-            continue # Not enough data points to fit a polynomial of this degree
-
+        if fit_len <= degree: continue
         try:
-            # Fit a polynomial of the current degree
             coeffs = np.polyfit(x_fit, y_fit, degree)
         except np.linalg.LinAlgError:
-            logging.warning(f"Could not fit polynomial of degree {degree}.")
             continue
-
-        # Check if coefficients are close to simple integers or rationals
-        # A tolerance of 1e-9 is used to account for floating point inaccuracies.
-        if not all(abs(c - round(c)) < 1e-9 for c in coeffs):
-            continue # Coefficients are not simple integers, so we skip
-
-        # Create a symbolic polynomial with rounded, integer coefficients
+        if not all(abs(c - round(c)) < 1e-9 for c in coeffs): continue
         rounded_coeffs = [int(round(c)) for c in coeffs]
         poly_formula = sum(c * n**(degree - i) for i, c in enumerate(rounded_coeffs))
-        
-        # Verify the formula against the *entire* sequence
-        is_verified = True
-        for i, true_val in enumerate(sequence_data, 1):
-            predicted_val = poly_formula.subs(n, i)
-            if predicted_val != true_val:
-                is_verified = False
-                break
-        
+        is_verified = all(poly_formula.subs(n, i) == true_val for i, true_val in enumerate(sequence_data, 1))
         if is_verified:
-            logging.info(f"Verified polynomial conjecture of degree {degree}.")
-            return {
-                "status": "verified",
-                "type": "polynomial",
-                "formula_latex": str(sympy.latex(poly_formula)),
-                "details": f"Polynomial of degree {degree}"
-            }
-            
+            return {"status": "verified", "type": "polynomial", "formula_latex": str(sympy.latex(poly_formula)), "details": f"Polynomial of degree {degree}"}
     return {"status": "failed"}
 
-
 def test_linear_recurrence_conjecture(sequence_data: List[int]) -> Dict[str, Any]:
-    """
-    Tests if a sequence satisfies a linear recurrence relation with integer coefficients.
-
-    Args:
-        sequence_data (List[int]): The integer sequence to analyze.
-
-    Returns:
-        Dict[str, Any]: A dictionary containing the status and details of the conjecture.
-    """
-    max_depth = CONFIG.get('max_recurrence_depth_to_test', 10)
-    
+    """Tests if a sequence satisfies a linear recurrence relation."""
+    # (This function remains unchanged)
+    max_depth = CONFIG.get('max_recurrence_depth_to_test', 15)
     for k in range(1, max_depth + 1):
-        # We need at least 2*k terms to solve for k coefficients
-        if len(sequence_data) < 2 * k:
-            continue
-
-        # Construct the system of linear equations Ax = b
-        # where x is the vector of coefficients [c_1, c_2, ..., c_k]
-        # a(n) = c_1*a(n-1) + ... + c_k*a(n-k)
-        
-        # Matrix A: each row is [a(n-1), a(n-2), ..., a(n-k)]
-        A = []
-        # Vector b: each entry is a(n)
-        b = []
-        
+        if len(sequence_data) < 2 * k: continue
+        A, b = [], []
         for i in range(k, 2 * k):
             A.append(list(reversed(sequence_data[i-k:i])))
             b.append(sequence_data[i])
-            
         try:
-            # Solve for the coefficients
             coeffs = solve(np.array(A), np.array(b))
         except LinAlgError:
-            # This can happen if the matrix is singular (linearly dependent rows)
             continue
-
-        # --- FIX ---
-        # Before checking for integer-ness, ensure all coefficients are finite numbers.
-        # This handles cases where the solver returns 'inf' or 'nan'.
-        if not np.all(np.isfinite(coeffs)):
-            continue
-        # --- END FIX ---
-
-        # Check if coefficients are close to integers
-        if not all(abs(c - round(c)) < 1e-9 for c in coeffs):
-            continue
-
+        if not np.all(np.isfinite(coeffs)): continue
+        if not all(abs(c - round(c)) < 1e-9 for c in coeffs): continue
         rounded_coeffs = [int(round(c)) for c in coeffs]
-
-        # Verify the recurrence for the rest of the sequence
-        is_verified = True
-        for i in range(k, len(sequence_data)):
-            predicted_val = sum(c * sequence_data[i-j-1] for j, c in enumerate(rounded_coeffs))
-            if int(round(predicted_val)) != sequence_data[i]:
-                is_verified = False
-                break
-        
+        is_verified = all(int(round(sum(c * sequence_data[i-j-1] for j, c in enumerate(rounded_coeffs)))) == sequence_data[i] for i in range(k, len(sequence_data)))
         if is_verified:
-            logging.info(f"Verified linear recurrence of depth {k}.")
-            # Create a LaTeX representation of the formula
-            n = sympy.symbols('n')
-            a = sympy.Function('a')
             terms = " + ".join(f"{c} \\cdot a(n-{j+1})" for j, c in enumerate(rounded_coeffs) if c != 0)
             formula_latex = f"a(n) = {terms}".replace('+ -', '- ')
-            
-            return {
-                "status": "verified",
-                "type": "linear_recurrence",
-                "formula_latex": formula_latex,
-                "details": f"Linear recurrence of depth {k}"
-            }
+            return {"status": "verified", "type": "linear_recurrence", "formula_latex": formula_latex, "details": f"Linear recurrence of depth {k}"}
+    return {"status": "failed"}
+
+def test_exponential_conjecture(sequence_data: List[int]) -> Dict[str, Any]:
+    """
+    Tests for a formula like a(n) = A * B^n + C.
+
+    Args:
+        sequence_data (List[int]): The integer sequence to analyze.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing the status and details.
+    """
+    if len(sequence_data) < 5: # Need enough points for the solver
+        return {"status": "failed"}
+
+    # We need to solve a system of 3 non-linear equations for A, B, C
+    # using 3 points from the sequence, e.g., n=1, n=2, n=3
+    points = sequence_data[:3]
+    
+    def equations(p):
+        A, B, C = p
+        # f(n) = A*B^n + C. We want f(n) - a(n) = 0
+        return (
+            A * B**1 + C - points[0],
+            A * B**2 + C - points[1],
+            A * B**3 + C - points[2]
+        )
+
+    try:
+        # Provide an initial guess for the solver
+        initial_guess = (1.0, 2.0, 0.0)
+        coeffs, _, ier, _ = fsolve(equations, initial_guess, full_output=True)
+        
+        # Check if the solver was successful (ier=1)
+        if ier != 1:
+            return {"status": "failed"}
+    except (ValueError, TypeError):
+        return {"status": "failed"}
+
+    # Check if the found coefficients are simple integers
+    if not np.all(np.isfinite(coeffs)) or not all(abs(c - round(c)) < 1e-9 for c in coeffs):
+        return {"status": "failed"}
+
+    A, B, C = [int(round(c)) for c in coeffs]
+    
+    # Avoid trivial cases like B=1 (which is just a linear sequence)
+    if B == 1 or A == 0:
+        return {"status": "failed"}
+
+    # Verify the formula against the entire sequence
+    n = sympy.symbols('n')
+    exp_formula = A * (B**n) + C
+    
+    is_verified = all(exp_formula.subs(n, i) == true_val for i, true_val in enumerate(sequence_data, 1))
+
+    if is_verified:
+        logging.info(f"Verified exponential conjecture: a(n) = {A}*({B}**n) + {C}")
+        return {
+            "status": "verified",
+            "type": "exponential",
+            "formula_latex": sympy.latex(exp_formula),
+            "details": f"Exponential formula with base {B}"
+        }
 
     return {"status": "failed"}
+

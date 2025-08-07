@@ -29,7 +29,7 @@ def main():
 
     # --- 2. Find New Candidates ---
     print("Searching for new candidate sequences...")
-    new_candidates = find_candidate_sequences(search_query=search_query, count=20)
+    new_candidates = find_candidate_sequences(search_query=search_query, count=100)
 
     if not new_candidates:
         print("No new candidate sequences were found in this run.")

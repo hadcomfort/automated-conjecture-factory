@@ -135,6 +135,13 @@ def test_linear_recurrence_conjecture(sequence_data: List[int]) -> Dict[str, Any
             # This can happen if the matrix is singular (linearly dependent rows)
             continue
 
+        # --- FIX ---
+        # Before checking for integer-ness, ensure all coefficients are finite numbers.
+        # This handles cases where the solver returns 'inf' or 'nan'.
+        if not np.all(np.isfinite(coeffs)):
+            continue
+        # --- END FIX ---
+
         # Check if coefficients are close to integers
         if not all(abs(c - round(c)) < 1e-9 for c in coeffs):
             continue

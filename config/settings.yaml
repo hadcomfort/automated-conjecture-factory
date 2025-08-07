@@ -1,0 +1,11 @@
+# OEIS settings
+oeis_base_url: "https://oeis.org/"
+
+# Analysis parameters
+min_sequence_length: 30
+max_poly_degree_to_test: 10
+max_recurrence_depth_to_test: 10
+verification_ratio: 0.8 # Use 80% of terms to fit, 20% to verify
+
+# Logging
+log_file: "project_log.log"

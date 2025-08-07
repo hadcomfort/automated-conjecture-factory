@@ -8,21 +8,21 @@ def main():
     """
     Main execution function to find and save candidate OEIS sequences.
     """
-    print("Starting the process to find candidate OEIS sequences...")
+    print("Starting the process to find candidate OEIS sequences with a broader search...")
 
     # --- Define Search Parameters ---
-    # You can customize the search query here if needed.
-    # This query looks for sequences with the keyword "look" but excludes those
-    # marked as "nice" or "easy", which often have known simple formulas.
-    search_query = "keyword:look -keyword:nice -keyword:easy"
+    # NEW, BROADER QUERY:
+    # This query looks for sequences marked as "new" and excludes those
+    # marked as "easy". This should provide a different set of candidates
+    # that are less likely to have simple, known formulas.
+    search_query = "keyword:new -keyword:easy"
     
     # --- Run the Finder ---
-    # This will fetch the first 10 results that match the criteria.
-    # You can increase the `count` to find more candidates.
-    candidates = find_candidate_sequences(search_query=search_query, count=10)
+    # We'll fetch 20 candidates this time to increase our chances.
+    candidates = find_candidate_sequences(search_query=search_query, count=20)
 
     if not candidates:
-        print("No suitable candidate sequences were found with the current criteria.")
+        print("No suitable candidate sequences were found with the new criteria.")
         return
 
     # --- Save the Results ---
@@ -35,9 +35,9 @@ def main():
     try:
         with open(output_path, "w") as f:
             json.dump(candidates, f, indent=4)
-        print(f"Successfully found {len(candidates)} candidates.")
+        print(f"Successfully found {len(candidates)} new candidates.")
         print(f"Results saved to: {output_path}")
-        print("Candidates:", candidates)
+        print("New Candidates:", candidates)
     except IOError as e:
         print(f"Error saving candidate sequences to file: {e}")
 

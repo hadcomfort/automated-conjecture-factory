@@ -93,8 +93,14 @@ def find_candidate_sequences(search_query: str = "keyword:look -keyword:nice -ke
     
     logging.info(f"Searching OEIS with query: '{search_query}' starting at index {start_index}")
     
+    # OEIS server blocks default python-requests User-Agent.
+    # We'll use a common browser User-Agent to bypass this.
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+
     try:
-        response = requests.get(search_url, params=params, timeout=15)
+        response = requests.get(search_url, params=params, headers=headers, timeout=15)
         response.raise_for_status()
         data = response.json()
     except requests.exceptions.RequestException as e:
@@ -104,14 +110,16 @@ def find_candidate_sequences(search_query: str = "keyword:look -keyword:nice -ke
         logging.error("Failed to decode JSON response from OEIS search.")
         return []
 
-    if 'results' not in data or data['results'] is None:
-        logging.warning("No 'results' found in OEIS API response.")
+    # The modern OEIS API for JSON format returns a list directly.
+    # The old format might have wrapped it in a 'results' key.
+    if not isinstance(data, list):
+        logging.warning("OEIS API response was not in the expected list format.")
         return []
 
     candidate_ids = []
     min_len = CONFIG.get('min_sequence_length', 30)
 
-    for result in data['results']:
+    for result in data:
         oeis_id = result.get('number')
         if not oeis_id:
             continue

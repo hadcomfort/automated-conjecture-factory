@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Science/Telescope.png" alt="Telescope Logo" width="120" height="120" />
+  <img src="https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/refs/heads/master/Emojis/Objects/Telescope.png" alt="Telescope Logo" width="120" height="120" />
 </p>
 
 <h1 align="center">Automated Conjecture Factory</h1>

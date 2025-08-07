@@ -1,0 +1,11 @@
+# For data fetching and manipulation
+requests
+numpy
+pandas
+scipy
+
+# For symbolic mathematics
+sympy
+
+# For plotting and visualization
+matplotlib

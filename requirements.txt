@@ -7,5 +7,8 @@ scipy
 # For symbolic mathematics
 sympy
 
+# For configuration file parsing
+PyYAML
+
 # For plotting and visualization
 matplotlib

@@ -47,14 +47,9 @@ def test_polynomial_conjecture(sequence_data: List[int]) -> Dict[str, Any]:
     x_fit = np.arange(1, fit_len + 1)
     y_fit = np.array(sequence_data[:fit_len])
 
-    # --- FIX ---
-    # Check if the data type is 'object'. This happens when numbers in the
-    # sequence are too large for standard numpy integers (int64).
-    # The polyfit function cannot handle this 'object' dtype.
     if y_fit.dtype == 'O':
         logging.warning(f"Sequence contains numbers too large for polynomial fitting. Skipping.")
         return {"status": "failed"}
-    # --- END FIX ---
 
     for degree in range(1, max_degree + 1):
         if fit_len <= degree: continue
@@ -77,12 +72,25 @@ def test_linear_recurrence_conjecture(sequence_data: List[int]) -> Dict[str, Any
     max_depth = CONFIG.get('max_recurrence_depth_to_test', 15)
     for k in range(1, max_depth + 1):
         if len(sequence_data) < 2 * k: continue
-        A, b = [], []
+        
+        A_list, b_list = [], []
         for i in range(k, 2 * k):
-            A.append(list(reversed(sequence_data[i-k:i])))
-            b.append(sequence_data[i])
+            A_list.append(list(reversed(sequence_data[i-k:i])))
+            b_list.append(sequence_data[i])
+        
+        # --- FIX ---
+        # Convert to numpy arrays here to check their dtype.
+        A = np.array(A_list)
+        b = np.array(b_list)
+        
+        # If arrays contain numbers too large for standard dtypes, skip.
+        if A.dtype == 'O' or b.dtype == 'O':
+            logging.warning(f"Sequence contains numbers too large for recurrence solver. Skipping.")
+            return {"status": "failed"}
+        # --- END FIX ---
+
         try:
-            coeffs = solve(np.array(A), np.array(b))
+            coeffs = solve(A, b)
         except LinAlgError:
             continue
         if not np.all(np.isfinite(coeffs)): continue

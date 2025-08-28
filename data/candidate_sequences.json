@@ -1,22 +1,66 @@
 [
-  "A276086",
-  "A237593",
-  "A064989",
-  "A296150",
-  "A019565",
-  "A237270",
-  "A236104",
-  "A139251",
-  "A163511",
-  "A215366",
-  "A386787",
-  "A386785",
-  "A386478",
-  "A386505",
-  "A386612",
-  "A386614",
-  "A386616",
-  "A386748",
-  "A384950",
-  "A386746"
+    {
+        "oeis_id": "A131393",
+        "comment": "From 'unkn' search 2025-08-28. Original name: Conjectured permutation of the positive integers using Rule 2 with a(1)=1."
+    },
+    {
+        "oeis_id": "A035403",
+        "comment": "From 'unkn' search 2025-08-28. Original name: Related to Rogers-Ramanujan Identities."
+    },
+    {
+        "oeis_id": "A103752",
+        "comment": "From 'unkn' search 2025-08-28. Original name: Erroneous version of: Primes from merging of 10 successive digits in decimal expansion of the Golden Ratio: (1+sqrt(5))/2."
+    },
+    {
+        "oeis_id": "A052281",
+        "comment": "From 'unkn' search 2025-08-28. Original name: Number of 4 X 4 symmetric stochastic matrices under row and column permutations."
+    },
+    {
+        "oeis_id": "A007762",
+        "comment": "From 'unkn' search 2025-08-28. Original name: Number of domino tilings of a certain region."
+    },
+    {
+        "oeis_id": "A124250",
+        "comment": "From 'unkn' search 2025-08-28. Original name: Finite set of numbers found inscribed on faces of a 17th or 18th century Mughal gold box in the shape of an icosahedron, from the treasury of Tipu Sultan."
+    },
+    {
+        "oeis_id": "A124251",
+        "comment": "From 'unkn' search 2025-08-28. Original name: Another version of A124250."
+    },
+    {
+        "oeis_id": "A386787",
+        "comment": "Manual Add: This was in the original candidate list and has many terms. Let's keep it."
+    },
+    {
+        "oeis_id": "A386785",
+        "comment": "Manual Add: This was in the original candidate list and has many terms. Let's keep it."
+    },
+    {
+        "oeis_id": "A386748",
+        "comment": "Manual Add: This was in the original candidate list and has many terms. Let's keep it."
+    },
+    {
+        "oeis_id": "A384950",
+        "comment": "Manual Add: This was in the original candidate list and has many terms. Let's keep it."
+    },
+    {
+        "oeis_id": "A386746",
+        "comment": "Manual Add: This was in the original candidate list and has many terms. Let's keep it."
+    },
+    {
+        "oeis_id": "A139251",
+        "comment": "Manual Add: This was in the original candidate list and has many terms. Let's keep it."
+    },
+    {
+        "oeis_id": "A237270",
+        "comment": "Manual Add: This was in the original candidate list and has many terms. Let's keep it."
+    },
+    {
+        "oeis_id": "A237593",
+        "comment": "Manual Add: This was in the original candidate list and has many terms. Let's keep it."
+    },
+    {
+        "oeis_id": "A064989",
+        "comment": "Manual Add: This was in the original candidate list and has many terms. Let's keep it."
+    }
 ]

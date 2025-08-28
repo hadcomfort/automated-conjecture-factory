@@ -45,10 +45,13 @@ def test_polynomial_conjecture(sequence_data: List[int]) -> Dict[str, Any]:
         return {"status": "failed"}
 
     x_fit = np.arange(1, fit_len + 1)
-    y_fit = np.array(sequence_data[:fit_len])
-
-    if y_fit.dtype == 'O':
-        logging.warning(f"Sequence contains numbers too large for polynomial fitting. Skipping.")
+    
+    try:
+        # Attempt to cast the relevant part of the sequence to a fixed-size integer array.
+        # This preemptively catches numbers that are too large for numpy's C-based routines.
+        y_fit = np.array(sequence_data[:fit_len], dtype=np.int64)
+    except OverflowError:
+        logging.warning("Sequence contains numbers too large for polynomial fitting. Skipping.")
         return {"status": "failed"}
 
     for degree in range(1, max_degree + 1):
@@ -69,6 +72,14 @@ def test_polynomial_conjecture(sequence_data: List[int]) -> Dict[str, Any]:
 
 def test_linear_recurrence_conjecture(sequence_data: List[int]) -> Dict[str, Any]:
     """Tests if a sequence satisfies a linear recurrence relation."""
+    # Preemptively check if sequence values are too large for numpy's standard integer types.
+    # This is more robust than checking for 'object' dtype later on.
+    try:
+        _ = np.array(sequence_data, dtype=np.int64)
+    except OverflowError:
+        logging.warning("Sequence contains numbers too large for recurrence solver. Skipping.")
+        return {"status": "failed"}
+
     max_depth = CONFIG.get('max_recurrence_depth_to_test', 15)
     for k in range(1, max_depth + 1):
         if len(sequence_data) < 2 * k: continue
@@ -78,16 +89,8 @@ def test_linear_recurrence_conjecture(sequence_data: List[int]) -> Dict[str, Any
             A_list.append(list(reversed(sequence_data[i-k:i])))
             b_list.append(sequence_data[i])
         
-        # --- FIX ---
-        # Convert to numpy arrays here to check their dtype.
         A = np.array(A_list)
         b = np.array(b_list)
-        
-        # If arrays contain numbers too large for standard dtypes, skip.
-        if A.dtype == 'O' or b.dtype == 'O':
-            logging.warning(f"Sequence contains numbers too large for recurrence solver. Skipping.")
-            return {"status": "failed"}
-        # --- END FIX ---
 
         try:
             coeffs = solve(A, b)

@@ -1,146 +1,93 @@
+# src/core/target_finder.py
+
 import requests
 import json
-import yaml
-import time
+import re
 import logging
-from typing import List, Dict, Optional
+from typing import List, Optional, Dict
 
-# --- Configuration Loading ---
-def load_config() -> Dict:
-    """Loads the project configuration from the YAML file."""
+# Use the official JSON search endpoint for finding candidates
+OEIS_SEARCH_URL = "https://oeis.org/search"
+OEIS_BFILE_URL_TEMPLATE = "https://oeis.org/{oeis_id}/b{oeis_id_num}.txt"
+
+def find_candidate_sequences(search_query: str, count: int) -> List[str]:
+    """
+    Searches the OEIS database using a given query string via its JSON API.
+    
+    Args:
+        search_query: The string to search for (e.g., "keyword:unkn").
+        count: The maximum number of results to fetch.
+        
+    Returns:
+        A list of OEIS ID strings (e.g., ["A000045", "A000010"]).
+    """
+    logging.info(f"Searching OEIS with query='{search_query}' and count={count}...")
+    params = {
+        "q": search_query,
+        "fmt": "json",
+        "n": count, # 'n' specifies the number of results
+        "start": 0
+    }
+    
+    new_ids = []
     try:
-        with open("config/settings.yaml", "r") as f:
-            return yaml.safe_load(f)
-    except FileNotFoundError:
-        logging.error("Configuration file 'config/settings.yaml' not found.")
-        # Return a default config to prevent crashing
-        return {
-            'oeis_base_url': "https://oeis.org/",
-            'min_sequence_length': 30,
-        }
+        response = requests.get(OEIS_SEARCH_URL, params=params, timeout=20)
+        response.raise_for_status()
+        data = response.json()
+        
+        if "results" in data and data["results"] is not None:
+            for result in data["results"]:
+                # Format the number as a standard 6-digit zero-padded ID
+                oeis_id = f"A{result['number']:06d}"
+                new_ids.append(oeis_id)
+            logging.info(f"OEIS search returned {len(new_ids)} new candidate IDs.")
+        else:
+            logging.info("OEIS search returned no results.")
+        return new_ids
 
-CONFIG = load_config()
-
-# --- Logging Setup ---
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename=CONFIG.get('log_file', 'project.log')
-)
-
-# --- Core Functions ---
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Failed to search OEIS: {e}")
+        return []
+    except json.JSONDecodeError:
+        logging.error("Failed to decode JSON response from OEIS search API.")
+        return []
 
 def fetch_b_file_data(oeis_id: str) -> Optional[List[int]]:
     """
-    Fetches the raw numerical data for a given OEIS sequence from its b-file.
-
-    Args:
-        oeis_id (str): The OEIS identifier (e.g., 'A000045').
-
-    Returns:
-        Optional[List[int]]: A list of integers in the sequence, or None if fetching fails.
+    Fetches the b-file for a given OEIS ID, containing the sequence terms.
+    This function is used by the main analyzer.
     """
-    # The b-file name is the OEIS ID with 'A' replaced by 'b'
-    b_file_id = oeis_id.replace('A', 'b')
-    url = f"{CONFIG['oeis_base_url']}{oeis_id}/{b_file_id}.txt"
-    
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
-        
-        sequence_data = []
-        lines = response.text.strip().split('\n')
-        for line in lines:
-            # Skip comments or empty lines
-            if line.startswith('#') or not line.strip():
-                continue
-            
-            # B-file format is typically "index value"
-            parts = line.split()
-            if len(parts) >= 2:
-                try:
-                    # The value is the second part
-                    value = int(parts[1])
-                    sequence_data.append(value)
-                except (ValueError, IndexError):
-                    logging.warning(f"Could not parse line in {oeis_id} b-file: {line}")
-                    continue
-                    
-        return sequence_data
-        
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Failed to fetch b-file for {oeis_id}. Error: {e}")
+    if not re.fullmatch(r"A\d{6,}", oeis_id):
+        logging.warning(f"Invalid OEIS ID format passed to fetch_b_file_data: {oeis_id}")
         return None
 
-def find_candidate_sequences(search_query: str = "keyword:look -keyword:nice -keyword:easy", start_index: int = 0, count: int = 10) -> List[str]:
-    """
-    Finds promising OEIS sequences that are non-trivial and have sufficient data.
-
-    Args:
-        search_query (str): The search query for the OEIS database.
-        start_index (int): The starting index for search results (for pagination).
-        count (int): The number of results to fetch per API call.
-
-    Returns:
-        List[str]: A list of qualifying OEIS IDs.
-    """
-    search_url = f"{CONFIG['oeis_base_url']}search"
-    params = {
-        'q': search_query,
-        'fmt': 'json',
-        'start': start_index
-    }
+    oeis_id_num_part = oeis_id[1:]
+    url = OEIS_BFILE_URL_TEMPLATE.format(oeis_id=oeis_id, oeis_id_num=oeis_id_num_part)
     
-    logging.info(f"Searching OEIS with query: '{search_query}' starting at index {start_index}")
-    
-    # OEIS server blocks default python-requests User-Agent.
-    # We'll use a common browser User-Agent to bypass this.
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-
     try:
-        response = requests.get(search_url, params=params, headers=headers, timeout=15)
+        response = requests.get(url, timeout=15)
         response.raise_for_status()
-        data = response.json()
+        
+        sequence_data = []
+        for line in response.text.splitlines():
+            if not line or line.startswith('#'):
+                continue
+            # A b-file line is typically 'n a(n)'
+            parts = line.strip().split()
+            if len(parts) >= 2:
+                try:
+                    # The second column is the sequence value a(n)
+                    a_n = int(parts[1])
+                    sequence_data.append(a_n)
+                except (ValueError, IndexError):
+                    continue
+        
+        if not sequence_data:
+            logging.warning(f"B-file for {oeis_id} was empty or unparseable.")
+            return None
+        
+        return sequence_data
+
     except requests.exceptions.RequestException as e:
-        logging.error(f"Failed to search OEIS. Error: {e}")
-        return []
-    except json.JSONDecodeError:
-        logging.error("Failed to decode JSON response from OEIS search.")
-        return []
-
-    # The modern OEIS API for JSON format returns a list directly.
-    # The old format might have wrapped it in a 'results' key.
-    if not isinstance(data, list):
-        logging.warning("OEIS API response was not in the expected list format.")
-        return []
-
-    candidate_ids = []
-    min_len = CONFIG.get('min_sequence_length', 30)
-
-    for result in data:
-        oeis_id = result.get('number')
-        if not oeis_id:
-            continue
-        
-        # Format the ID correctly (e.g., 45 -> A000045)
-        oeis_id_str = f"A{oeis_id:06d}"
-
-        logging.info(f"Checking candidate: {oeis_id_str}")
-        
-        # Fetch the b-file to check the sequence length
-        sequence_data = fetch_b_file_data(oeis_id_str)
-        
-        # Add a small delay to be respectful to the OEIS servers
-        time.sleep(0.5) 
-        
-        if sequence_data and len(sequence_data) >= min_len:
-            logging.info(f"  -> QUALIFIED: {oeis_id_str} has {len(sequence_data)} terms.")
-            candidate_ids.append(oeis_id_str)
-        elif sequence_data:
-            logging.info(f"  -> SKIPPED: {oeis_id_str} has only {len(sequence_data)} terms (min: {min_len}).")
-        else:
-            logging.info(f"  -> SKIPPED: Could not fetch data for {oeis_id_str}.")
-            
-    return candidate_ids
+        logging.warning(f"Failed to fetch b-file for {oeis_id}: {e}")
+        return None

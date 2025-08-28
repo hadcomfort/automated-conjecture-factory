@@ -22,6 +22,12 @@ def find_candidate_sequences(search_query: str, count: int) -> List[str]:
         A list of OEIS ID strings (e.g., ["A000045", "A000010"]).
     """
     logging.info(f"Searching OEIS with query='{search_query}' and count={count}...")
+    
+    # --- FIX: Add a User-Agent header to mimic a browser and avoid being blocked ---
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    
     params = {
         "q": search_query,
         "fmt": "json",
@@ -31,7 +37,8 @@ def find_candidate_sequences(search_query: str, count: int) -> List[str]:
     
     new_ids = []
     try:
-        response = requests.get(OEIS_SEARCH_URL, params=params, timeout=20)
+        # Add the headers parameter to the request call
+        response = requests.get(OEIS_SEARCH_URL, params=params, headers=headers, timeout=20)
         response.raise_for_status()
         data = response.json()
         
@@ -64,8 +71,13 @@ def fetch_b_file_data(oeis_id: str) -> Optional[List[int]]:
     oeis_id_num_part = oeis_id[1:]
     url = OEIS_BFILE_URL_TEMPLATE.format(oeis_id=oeis_id, oeis_id_num=oeis_id_num_part)
     
+    # Also add headers here to be safe and consistent
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+
     try:
-        response = requests.get(url, timeout=15)
+        response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         
         sequence_data = []

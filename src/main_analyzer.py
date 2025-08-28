@@ -16,6 +16,8 @@ from core.conjecture_engine import (
     test_linear_recurrence_conjecture,
     test_exponential_conjecture
 )
+# <-- ADDED IMPORT: Import the new rational conjecture test
+from core.rational_conjecture import test_rational_conjecture
 from core.target_finder import fetch_b_file_data
 from core.reporting import create_pr_for_finding
 
@@ -63,8 +65,8 @@ def _get_env_list(name: str, default: List[str]) -> List[str]:
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 # Timeout per test in seconds
 TEST_TIMEOUT_SEC = _get_env_int("TEST_TIMEOUT_SEC", 60, min_value=1)
-# Which tests to run, in order; default preserves your original order
-ENABLE_TESTS = _get_env_list("ENABLE_TESTS", ["poly", "rec", "exp"])
+# <-- MODIFIED: Default list of tests now includes "rat" for rational functions
+ENABLE_TESTS = _get_env_list("ENABLE_TESTS", ["poly", "rec", "exp", "rat"])
 # Simple fetch retry policy
 MAX_FETCH_RETRIES = _get_env_int("MAX_FETCH_RETRIES", 3, min_value=1)
 FETCH_RETRY_BASE_SLEEP = _get_env_float("FETCH_RETRY_BASE_SLEEP", 1.0, min_value=0.0)
@@ -184,6 +186,9 @@ def get_test_callable(name: str):
         return "linear_recurrence", test_linear_recurrence_conjecture
     if key in ("exp", "exponential"):
         return "exponential", test_exponential_conjecture
+    # <-- ADDED: Logic for rational function test
+    if key in ("rat", "rational", "rational_function"):
+        return "rational_function", test_rational_conjecture
     return None, None
 
 def run_test_with_timeout(label: str, fn, sequence_data: Any, timeout_sec: int) -> Dict[str, Any]:
@@ -231,12 +236,17 @@ def main():
             raw = json.load(f)
         if isinstance(raw, dict):
             # If someone supplied {"candidates": [...]} shape
-            candidate_ids = raw.get("candidates", [])
+            # Updated to handle {"oeis_id": "...", "comment": "..."} objects
+            candidate_list = raw.get("candidates", [])
         elif isinstance(raw, list):
-            candidate_ids = raw
+            candidate_list = raw
         else:
-            logging.error("Unexpected JSON structure in %s. Expected list or dict.", candidates_path)
+            logging.error("Unexpected JSON structure in %s. Expected list or dict of candidates.", candidates_path)
             return
+            
+        # Extract just the ID if the list contains dicts
+        candidate_ids = [c["oeis_id"] if isinstance(c, dict) else c for c in candidate_list]
+            
     except (FileNotFoundError, json.JSONDecodeError) as e:
         logging.error("Could not load candidates from %s: %s", candidates_path, e)
         return
@@ -299,7 +309,16 @@ def main():
         with ThreadPoolExecutor(max_workers=len(tests_plan)) as ex:
             futures = {}
             for t_key, label, fn in tests_plan:
-                futures[ex.submit(run_test_with_timeout, label, fn, sequence_data, TEST_TIMEOUT_SEC)] = (t_key, label)
+                # <-- MODIFIED: Handle the specific signature for the rational test
+                # The rational test needs the oeis_id for logging, so we wrap it
+                # in a lambda to match the standard fn(sequence_data) signature.
+                if label == "rational_function":
+                    callable_fn = lambda data: fn(data, oeis_id)
+                else:
+                    callable_fn = fn
+                
+                futures[ex.submit(run_test_with_timeout, label, callable_fn, sequence_data, TEST_TIMEOUT_SEC)] = (t_key, label)
+
             for fut in as_completed(futures):
                 t_key, label = futures[fut]
                 try:
@@ -310,7 +329,7 @@ def main():
 
         any_verified = False
 
-        # Report outcomes in deterministic original order: poly -> rec -> exp
+        # Report outcomes in deterministic original order
         for _, label, _ in tests_plan:
             res = results.get(label, {"status": "error", "error": "missing result"})
             status = res.get("status")
@@ -350,7 +369,8 @@ def main():
                  totals["candidates_processed"], totals["candidates_total"], elapsed,
                  totals["fetch_success"], totals["fetch_failed"], totals["verified_total"])
     for lbl, cnt in totals["verified_by_test"].items():
-        logging.info("  Verified by %-20s: %d", lbl, cnt)
+        if cnt > 0: # Only show tests that found something
+            logging.info("  Verified by %-20s: %d", lbl, cnt)
     for lbl, cnt in totals["errors_by_test"].items():
         if cnt:
             logging.info("  Errors in %-22s: %d", lbl, cnt)
